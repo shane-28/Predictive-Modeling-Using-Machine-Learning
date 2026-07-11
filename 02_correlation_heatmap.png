@@ -1,0 +1,61 @@
+"""
+Generates a synthetic telecom customer churn dataset for a
+binary classification task (Churn: Yes/No).
+Run once to create data/customer_churn.csv
+"""
+import numpy as np
+import pandas as pd
+
+np.random.seed(42)
+n = 2000
+
+# Core features
+tenure_months = np.random.randint(1, 72, n)
+monthly_charges = np.round(np.random.normal(65, 25, n).clip(15, 150), 2)
+contract_type = np.random.choice(["Month-to-Month", "One Year", "Two Year"], n, p=[0.55, 0.25, 0.20])
+internet_service = np.random.choice(["DSL", "Fiber Optic", "No"], n, p=[0.35, 0.45, 0.20])
+support_calls = np.random.poisson(2, n).clip(0, 12)
+payment_method = np.random.choice(
+    ["Electronic Check", "Mailed Check", "Bank Transfer", "Credit Card"], n
+)
+age = np.random.randint(18, 80, n)
+total_charges = np.round(monthly_charges * tenure_months * np.random.uniform(0.9, 1.1, n), 2)
+
+# Build churn probability from a logical combination of features (so the
+# model has real signal to learn), then sample the actual label from it.
+churn_prob = (
+    0.35
+    + 0.25 * (contract_type == "Month-to-Month")
+    - 0.15 * (contract_type == "Two Year")
+    + 0.15 * (internet_service == "Fiber Optic")
+    - 0.10 * (internet_service == "No")
+    + 0.03 * support_calls
+    - 0.004 * tenure_months
+    + 0.10 * (payment_method == "Electronic Check")
+    + np.random.normal(0, 0.12, n)
+)
+churn_prob = np.clip(churn_prob, 0.02, 0.95)
+churn = (np.random.rand(n) < churn_prob).astype(int)
+
+df = pd.DataFrame({
+    "CustomerID": [f"CUST{10000 + i}" for i in range(n)],
+    "Age": age,
+    "TenureMonths": tenure_months,
+    "ContractType": contract_type,
+    "InternetService": internet_service,
+    "PaymentMethod": payment_method,
+    "MonthlyCharges": monthly_charges,
+    "TotalCharges": total_charges,
+    "SupportCallsLastYear": support_calls,
+    "Churn": np.where(churn == 1, "Yes", "No"),
+})
+
+# A touch of realistic messiness (small, since the modeling project's
+# focus is the ML pipeline, not cleaning) — a few missing TotalCharges,
+# mirroring a common real-world quirk in this exact type of dataset.
+missing_idx = df.sample(frac=0.01, random_state=1).index
+df.loc[missing_idx, "TotalCharges"] = np.nan
+
+df.to_csv("/home/claude/ml_project/data/customer_churn.csv", index=False)
+print("Synthetic churn dataset created:", df.shape)
+print(df["Churn"].value_counts(normalize=True))
